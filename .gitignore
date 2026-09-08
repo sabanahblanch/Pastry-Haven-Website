@@ -1,0 +1,7 @@
+data/*.json
+data/*.log
+uploads/*
+!uploads/.gitkeep
+.DS_Store
+Thumbs.db
+*.tmp
