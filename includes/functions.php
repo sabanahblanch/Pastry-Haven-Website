@@ -667,6 +667,121 @@ function handle_reference_upload()
     return 'uploads/' . $filename;
 }
 
+function menu_url($overrides = [])
+{
+    $params = [
+        'category' => $_GET['category'] ?? 'all',
+        'q' => trim($_GET['q'] ?? ''),
+        'sort' => $_GET['sort'] ?? 'featured',
+        'filter' => $_GET['filter'] ?? 'all',
+        'page' => $_GET['page'] ?? 1,
+    ];
+    $params = array_merge($params, $overrides);
+    if (($params['category'] ?? 'all') === 'all' || $params['category'] === '') {
+        unset($params['category']);
+    }
+    if (($params['q'] ?? '') === '') {
+        unset($params['q']);
+    }
+    if (($params['sort'] ?? 'featured') === 'featured' || $params['sort'] === '') {
+        unset($params['sort']);
+    }
+    if (($params['filter'] ?? 'all') === 'all' || $params['filter'] === '') {
+        unset($params['filter']);
+    }
+    if ((int) ($params['page'] ?? 1) <= 1) {
+        unset($params['page']);
+    }
+    $query = http_build_query($params);
+    return 'menu.php' . ($query === '' ? '' : '?' . $query);
+}
+
+function filter_menu_products($items, $filter)
+{
+    if ($filter === 'featured') {
+        return array_values(array_filter($items, function ($product) {
+            return !empty($product['featured']);
+        }));
+    }
+    if ($filter === 'under-100') {
+        return array_values(array_filter($items, function ($product) {
+            return (float) $product['price'] < 100;
+        }));
+    }
+    return array_values($items);
+}
+
+function sort_menu_products($items, $sort)
+{
+    usort($items, function ($a, $b) use ($sort) {
+        if ($sort === 'price-asc') {
+            return $a['price'] <=> $b['price'];
+        }
+        if ($sort === 'price-desc') {
+            return $b['price'] <=> $a['price'];
+        }
+        if ($sort === 'name') {
+            return strcasecmp($a['name'], $b['name']);
+        }
+        if ($sort === 'reviews') {
+            return $b['reviews'] <=> $a['reviews'];
+        }
+        return ((int) !empty($b['featured'])) <=> ((int) !empty($a['featured']))
+            ?: strcasecmp($a['name'], $b['name']);
+    });
+    return $items;
+}
+
+function product_ready_time($category)
+{
+    $times = [
+        'cakes' => '1 day',
+        'breads' => '20 - 40 min',
+        'cookies' => '15 - 25 min',
+        'cupcakes' => '20 - 40 min',
+    ];
+    return $times[$category] ?? 'Same day';
+}
+
+function category_label($category)
+{
+    global $categories;
+    return $categories[$category] ?? ucfirst((string) $category);
+}
+
+function render_menu_card($product)
+{
+    global $categories;
+    $fav_icon = is_favorite($product['id']) ? 'fas' : 'far';
+    $url = 'product.php?id=' . urlencode($product['id']);
+    $label = $categories[$product['category']] ?? ucfirst($product['category']);
+    ob_start();
+    ?>
+        <article class="menu-card">
+            <div class="menu-card-image">
+                <button type="button" class="heart-btn" data-id="<?php echo e($product['id']); ?>" aria-label="Add to Favorites">
+                    <i class="<?php echo $fav_icon; ?> fa-heart"></i>
+                </button>
+                <a href="<?php echo e($url); ?>">
+                    <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>">
+                </a>
+            </div>
+            <div class="menu-card-body">
+                <div class="menu-card-title-row">
+                    <h3><a href="<?php echo e($url); ?>"><?php echo e($product['name']); ?></a></h3>
+                    <span class="menu-price-pill"><?php echo format_price($product['price']); ?></span>
+                </div>
+                <div class="menu-card-meta">
+                    <span><i class="fas fa-heart"></i> <?php echo number_format((float) $product['rating'], 1); ?> (<?php echo (int) $product['reviews']; ?>)</span>
+                    <span><i class="fas fa-cookie-bite"></i> <?php echo e($label); ?></span>
+                    <span><i class="far fa-clock"></i> <?php echo e(product_ready_time($product['category'])); ?></span>
+                </div>
+            </div>
+        </article>
+    <?php
+    return ob_get_clean();
+}
+
 function render_product_card($product)
 {
     $fav_icon = is_favorite($product['id']) ? 'fas' : 'far';

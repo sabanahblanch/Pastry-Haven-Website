@@ -13,8 +13,6 @@ if ($query !== '') {
     $items = products_by_category($category);
     $heading = ($category === 'all' || $category === '') ? 'Our Menu' : strtoupper($category);
 }
-
-global $categories;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -27,27 +25,53 @@ global $categories;
 </head>
 <body>
     <?php require __DIR__ . '/includes/site-nav.php'; ?>
-    <section class="best-sellers inner-page">
+    <section class="cravings inner-page">
         <div class="cravings-header">
-            <h2><?php echo e($heading); ?></h2>
+            <h2>What Are You Craving?</h2>
             <div class="heart-divider">
                 <span class="line"></span>
                 <i class="fas fa-heart"></i>
                 <span class="line"></span>
             </div>
         </div>
+        <div class="cravings-grid">
+            <a href="menu.php?category=cakes" class="craving-item <?php echo $category === 'cakes' ? 'active' : ''; ?>">
+                <div class="craving-circle">
+                    <img src="images/cake.jfif" alt="Cakes">
+                </div>
+                <h3>CAKES</h3>
+            </a>
+            <a href="menu.php?category=breads" class="craving-item <?php echo $category === 'breads' ? 'active' : ''; ?>">
+                <div class="craving-circle">
+                    <img src="images/bread.jfif" alt="Breads">
+                </div>
+                <h3>BREADS</h3>
+            </a>
+            <a href="menu.php?category=cookies" class="craving-item <?php echo $category === 'cookies' ? 'active' : ''; ?>">
+                <div class="craving-circle">
+                    <img src="images/cookies.jfif" alt="Cookies">
+                </div>
+                <h3>COOKIES</h3>
+            </a>
+            <a href="menu.php?category=cupcakes" class="craving-item <?php echo $category === 'cupcakes' ? 'active' : ''; ?>">
+                <div class="craving-circle">
+                    <img src="images/cupcake.jfif" alt="Cupcakes">
+                </div>
+                <h3>CUPCAKES</h3>
+            </a>
+        </div>
         <?php if ($flash): ?>
             <p class="about-text auth-flash auth-flash-<?php echo e($flash['type']); ?>"><?php echo e($flash['message']); ?></p>
         <?php endif; ?>
         <?php if ($query !== ''): ?>
             <p class="about-text">Showing results for "<?php echo e($query); ?>"</p>
+            <a href="menu.php" class="view-all">VIEW FULL MENU &rarr;</a>
+        <?php elseif ($category !== 'all' && $category !== ''): ?>
+            <div class="section-title-row">
+                <h2><?php echo e($heading); ?></h2>
+                <a href="menu.php" class="view-all">VIEW ALL &rarr;</a>
+            </div>
         <?php endif; ?>
-        <div class="step-options filter-pills">
-            <a href="menu.php" class="pill-btn <?php echo ($category === 'all' && $query === '') ? 'active' : ''; ?>">All</a>
-            <?php foreach ($categories as $key => $label): ?>
-                <a href="menu.php?category=<?php echo e($key); ?>" class="pill-btn <?php echo $category === $key ? 'active' : ''; ?>"><?php echo e($label); ?></a>
-            <?php endforeach; ?>
-        </div>
         <?php if (!$items): ?>
             <p class="about-text">No pastries found. Try another search or category.</p>
             <a href="menu.php" class="cta-button">VIEW FULL MENU</a>
