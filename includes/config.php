@@ -37,12 +37,17 @@ $categories = [
 require_once __DIR__ . '/db-config.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/admin.php';
 
 ensure_storage();
 
 if (!defined('INSTALLING')) {
     try {
         db();
+        ensure_admin_schema();
+        $phone_number = get_setting('phone', $phone_number);
+        $email_address = get_setting('email', $email_address);
+        $location = get_setting('location', $location);
     } catch (Throwable $e) {
         error_log($e->getMessage());
         http_response_code(503);

@@ -2,6 +2,23 @@
     var overlay = document.getElementById('search-overlay');
     var toggle = document.getElementById('search-toggle');
     var closeBtn = document.getElementById('search-close');
+    var customizeModal = document.getElementById('customize-cake-modal');
+
+    function openCustomizeModal() {
+        if (!customizeModal) {
+            return;
+        }
+        customizeModal.hidden = false;
+        document.body.classList.add('modal-open');
+    }
+
+    function closeCustomizeModal() {
+        if (!customizeModal || customizeModal.hidden) {
+            return;
+        }
+        customizeModal.hidden = true;
+        document.body.classList.remove('modal-open');
+    }
 
     if (toggle && overlay) {
         toggle.addEventListener('click', function (e) {
@@ -19,10 +36,28 @@
         });
     }
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && overlay) {
+        if (e.key !== 'Escape') {
+            return;
+        }
+        if (overlay && !overlay.hidden) {
             overlay.hidden = true;
         }
+        closeCustomizeModal();
     });
+
+    document.querySelectorAll('.js-open-customize').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openCustomizeModal();
+        });
+    });
+    document.querySelectorAll('[data-close-customize]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            closeCustomizeModal();
+        });
+    });
+    if (customizeModal && /(?:^|[?&])customize=1(?:&|$)/.test(window.location.search)) {
+        openCustomizeModal();
+    }
 
     document.querySelectorAll('.step-options').forEach(function (group) {
         group.querySelectorAll('.pill-btn').forEach(function (btn) {
@@ -90,4 +125,17 @@
             input.closest('.pill-btn').classList.add('active');
         });
     });
+
+    function syncCardPaymentFields() {
+        var fields = document.getElementById('card-payment-fields');
+        var selected = document.querySelector('input[name="payment"]:checked');
+        if (!fields) {
+            return;
+        }
+        fields.hidden = !(selected && selected.value === 'Card');
+    }
+    document.querySelectorAll('input[name="payment"]').forEach(function (input) {
+        input.addEventListener('change', syncCardPaymentFields);
+    });
+    syncCardPaymentFields();
 })();

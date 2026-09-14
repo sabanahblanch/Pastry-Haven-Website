@@ -1,5 +1,10 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
+
+if (is_logged_in() && !is_admin()) {
+    redirect('menu.php');
+}
+
 $active_nav = 'home';
 $flash = get_flash();
 ?>
@@ -81,170 +86,19 @@ $flash = get_flash();
         </div>
     </section>
 
-    <section class="build-section-wrapper" id="build">
-        <form class="build-card" method="post" action="cart.php" enctype="multipart/form-data">
-            <?php echo csrf_field(); ?>
-            <input type="hidden" name="action" value="add_custom">
-            <input type="hidden" name="flavor" id="custom-flavor" value="Chocolate">
-            <input type="hidden" name="size" id="custom-size" value="Small">
-
-            <div class="build-left">
-                <div class="build-header">
-                    <h1>BUILD YOUR OWN</h1>
-                    <h2>Flavor &amp; Design</h2>
-                    <p class="subtext">Create a sweet treat that's uniquely yours.</p>
-                    <div class="divider">
-                        <span class="line"></span>
-                        <i class="fas fa-heart"></i>
-                        <span class="line"></span>
-                    </div>
-                </div>
-                <div class="cake-image-container">
-                    <img src="images/dark choco.png" alt="Custom Black Forest Cake">
-                </div>
-                <button type="submit" class="cta-button">CREATE MY TREAT</button>
-            </div>
-
-            <div class="build-right">
-                <div class="step-row">
-                    <div class="step-label">
-                        <span class="step-num">01</span>
-                        <span class="step-title">Choose your flavor</span>
-                    </div>
-                    <div class="step-options" data-input="custom-flavor">
-                        <button type="button" class="pill-btn active" data-value="Chocolate">Chocolate</button>
-                        <button type="button" class="pill-btn" data-value="Vanilla">Vanilla</button>
-                        <button type="button" class="pill-btn" data-value="Strawberry">Strawberry</button>
-                        <button type="button" class="pill-btn" data-value="Red Velvet">Red Velvet</button>
-                    </div>
-                </div>
-
-                <div class="step-row">
-                    <div class="step-label">
-                        <span class="step-num">02</span>
-                        <span class="step-title">Choose your design</span>
-                    </div>
-                    <div class="step-options">
-                        <button type="button" class="pill-btn active" id="reference-btn">Add Your Reference</button>
-                        <input type="file" name="reference" id="custom-reference" accept="image/jpeg,image/png,image/webp,image/gif,.jfif" hidden>
-                    </div>
-                </div>
-
-                <div class="step-row">
-                    <div class="step-label">
-                        <span class="step-num">03</span>
-                        <span class="step-title">Choose a size</span>
-                    </div>
-                    <div class="step-options" data-input="custom-size">
-                        <button type="button" class="pill-btn active" data-value="Small">Small</button>
-                        <button type="button" class="pill-btn" data-value="Medium">Medium</button>
-                        <button type="button" class="pill-btn" data-value="Large">Large</button>
-                    </div>
-                </div>
-
-                <div class="step-row">
-                    <div class="step-label">
-                        <span class="step-num">04</span>
-                        <span class="step-title">Write your dedications <small>(Optional)</small></span>
-                    </div>
-                    <div class="step-input">
-                        <input type="text" name="dedication" placeholder="Happy Birthday!" maxlength="80" value="Happy Birthday!">
-                    </div>
-                </div>
-            </div>
-        </form>
+    <section class="build-section-wrapper" id="customize-cake">
+        <?php
+        $customize_return = 'index.php#customize-cake';
+        $customize_form_class = 'build-card';
+        require __DIR__ . '/includes/customize-cake-form.php';
+        ?>
     </section>
 
-    <section class="about" id="about">
-        <div class="about-container">
-            <div class="about-image-wrapper">
-                <img src="images/about us.jfif" alt="Baking Kitchen with Pink Mixer">
-            </div>
-            <div class="about-content">
-                <div class="about-header">
-                    <h2>ABOUT US</h2>
-                    <div class="small-divider">
-                        <span class="line"></span>
-                        <i class="fas fa-heart"></i>
-                        <span class="line"></span>
-                    </div>
-                </div>
-                <h3 class="about-subtitle">A Little Taste of Home</h3>
-                <p class="about-text">
-                    Pastry Haven was created from our passion for baking and our desire to make enjoying pastries easier and more convenient. We offer homemade, freshly baked, and customizable treats that you can browse and order online from the comfort of your home. Whether you're a student, a family, celebrating a special occasion, or simply craving something sweet, we want you to feel welcomed, comfortable, and satisfied. With customizable flavors, cake designs, toppings, sizes, and messages, every treat can be made your way. Above all, Pastry Haven hopes to create unforgettable flavors and a feeling of home in every bite.
-                </p>
-                <div class="about-footer-row">
-                    <div class="about-features">
-                        <div class="feature-item">
-                            <i class="fas fa-utensils"></i>
-                            <span>Quality Ingredients</span>
-                        </div>
-                        <div class="feature-item">
-                            <i class="far fa-heart"></i>
-                            <span>Made with Love</span>
-                        </div>
-                        <div class="feature-item">
-                            <i class="fas fa-cookie"></i>
-                            <span>Freshly Baked</span>
-                        </div>
-                    </div>
-                    <a href="contact.php" class="learn-more-btn">
-                        Learn More..... <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="how-to-order" id="how-to-order">
-        <div class="order-header">
-            <span class="line"></span>
-            <h2>HOW TO ORDER</h2>
-            <span class="line"></span>
-        </div>
-        <div class="order-steps-container">
-            <a href="menu.php" class="order-step-item">
-                <div class="icon-circle"><i class="fas fa-search"></i></div>
-                <div class="step-text">
-                    <h3>Browse</h3>
-                    <p>Explore our pastries</p>
-                </div>
-            </a>
-            <div class="step-connector"></div>
-            <a href="#build" class="order-step-item">
-                <div class="icon-circle"><i class="fas fa-pencil-alt"></i></div>
-                <div class="step-text">
-                    <h3>Customise</h3>
-                    <p>Choose your flavor &amp; design</p>
-                </div>
-            </a>
-            <div class="step-connector"></div>
-            <a href="cart.php" class="order-step-item">
-                <div class="icon-circle"><i class="fas fa-shopping-cart"></i></div>
-                <div class="step-text">
-                    <h3>Add to Cart</h3>
-                    <p>Review your order</p>
-                </div>
-            </a>
-            <div class="step-connector"></div>
-            <a href="checkout.php" class="order-step-item">
-                <div class="icon-circle"><i class="fas fa-money-bill-wave"></i></div>
-                <div class="step-text">
-                    <h3>Checkout</h3>
-                    <p>Complete your order and pay</p>
-                </div>
-            </a>
-            <div class="step-connector"></div>
-            <a href="index.php" class="order-step-item">
-                <div class="icon-circle"><i class="fas fa-box-open"></i></div>
-                <div class="step-text">
-                    <h3>Enjoy</h3>
-                    <p>Wait for your freshly baked treat</p>
-                </div>
-            </a>
-        </div>
-    </section>
-
-    <?php require __DIR__ . '/includes/site-footer.php'; ?>
+    <?php
+    $customise_href = '#customize-cake';
+    require __DIR__ . '/includes/about-section.php';
+    require __DIR__ . '/includes/how-to-order-section.php';
+    require __DIR__ . '/includes/site-footer.php';
+    ?>
 </body>
 </html>

@@ -25,7 +25,7 @@ require_once __DIR__ . '/includes/config.php';
             <h3 class="about-subtitle">Can I add a dedication?</h3>
             <p class="about-text">Yes. Use Build Your Own or the notes field at checkout.</p>
             <h3 class="about-subtitle">What payment methods do you accept?</h3>
-            <p class="about-text">Cash on delivery or pickup, and GCash to <?php echo e($phone_number); ?>.</p>
+            <p class="about-text">Cash on delivery or pickup, and card at checkout.</p>
             <a href="contact.php" class="cta-button">CONTACT US</a>
         </div>
     </section>

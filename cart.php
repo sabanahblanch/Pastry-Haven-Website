@@ -8,6 +8,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $action = $_POST['action'] ?? '';
+    if (in_array($action, ['add', 'buy_now', 'add_custom'], true) && !current_user()) {
+        $next = $action === 'add_custom'
+            ? safe_next_path($_POST['return'] ?? 'menu.php?category=cakes&customize=1', 'menu.php')
+            : safe_next_path($_POST['return'] ?? 'menu.php', 'menu.php');
+        require_login($next, 'Please log in or create an account to add items to your cart.');
+    }
 
     if ($action === 'add') {
         $id = $_POST['id'] ?? '';
@@ -15,9 +21,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (add_to_cart($id, $qty)) {
             set_flash('success', 'Added to your cart.');
         } else {
-            set_flash('error', 'That pastry could not be added.');
+            set_flash('error', 'That pastry could not be added. It may be out of stock.');
         }
-        redirect('cart.php');
+        redirect(safe_return_path($_POST['return'] ?? 'cart.php'));
+    }
+
+    if ($action === 'buy_now') {
+        $id = $_POST['id'] ?? '';
+        $qty = (int) ($_POST['qty'] ?? 1);
+        if (add_to_cart($id, $qty)) {
+            redirect('checkout.php');
+        }
+        set_flash('error', 'That pastry could not be added. It may be out of stock.');
+        redirect(safe_return_path($_POST['return'] ?? 'menu.php'));
     }
 
     if ($action === 'add_custom') {
@@ -48,6 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (($_GET['action'] ?? '') === 'add') {
+    require_login(
+        safe_next_path($_GET['return'] ?? 'menu.php', 'menu.php'),
+        'Please log in or create an account to add items to your cart.'
+    );
     $id = $_GET['id'] ?? '';
     if (add_to_cart($id, 1)) {
         set_flash('success', 'Added to your cart.');
@@ -59,7 +79,8 @@ if (($_GET['action'] ?? '') === 'add') {
 
 $cart = get_cart();
 $flash = get_flash();
-$active_nav = '';
+$active_nav = 'cart';
+$user = current_user();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -123,7 +144,12 @@ $active_nav = '';
             <div class="cravings-header">
                 <h2>Total <?php echo format_price(cart_subtotal()); ?></h2>
             </div>
-            <a href="checkout.php" class="cta-button">CHECKOUT</a>
+            <?php if ($user): ?>
+                <a href="checkout.php" class="cta-button">CHECKOUT</a>
+            <?php else: ?>
+                <p class="about-text">Log in or create an account to place your order.</p>
+                <a href="<?php echo e(account_url('', 'checkout.php')); ?>" class="cta-button">LOG IN TO CHECKOUT</a>
+            <?php endif; ?>
         <?php endif; ?>
     </section>
     <?php require __DIR__ . '/includes/site-footer.php'; ?>

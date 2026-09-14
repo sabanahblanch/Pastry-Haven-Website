@@ -40,6 +40,7 @@
             var confirm = form.querySelector('[name="confirm_password"]');
             var address = form.querySelector('[name="address"]');
             var fulfillment = form.querySelector('[name="fulfillment"]:checked');
+            var payment = form.querySelector('[name="payment"]:checked');
 
             if (name && name.hasAttribute('required') && name.value.trim().length < 2) {
                 e.preventDefault();
@@ -79,6 +80,46 @@
             if (fulfillment && fulfillment.value === 'Delivery' && address && address.value.trim() === '') {
                 e.preventDefault();
                 showError(form, 'Please enter a delivery address in Dumaguete City.');
+                return;
+            }
+            var readyDate = form.querySelector('[name="ready_date"]');
+            if (readyDate && readyDate.hasAttribute('required')) {
+                if (!readyDate.value) {
+                    e.preventDefault();
+                    showError(form, 'Please select a date for your custom cake.');
+                    return;
+                }
+                if (readyDate.min && readyDate.value < readyDate.min) {
+                    e.preventDefault();
+                    showError(form, 'Please select a date at least 1 day from today.');
+                    return;
+                }
+            }
+            if (payment && payment.value === 'Card') {
+                var cardName = form.querySelector('[name="card_name"]');
+                var cardNumber = form.querySelector('[name="card_number"]');
+                var cardExpiry = form.querySelector('[name="card_expiry"]');
+                var cardCvv = form.querySelector('[name="card_cvv"]');
+                var digits = cardNumber ? cardNumber.value.replace(/\D+/g, '') : '';
+                if (!cardName || cardName.value.trim().length < 2) {
+                    e.preventDefault();
+                    showError(form, 'Please enter the name on the card.');
+                    return;
+                }
+                if (digits.length < 13 || digits.length > 19) {
+                    e.preventDefault();
+                    showError(form, 'Please enter a valid card number.');
+                    return;
+                }
+                if (!cardExpiry || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry.value.trim())) {
+                    e.preventDefault();
+                    showError(form, 'Please enter the card expiry as MM/YY.');
+                    return;
+                }
+                if (!cardCvv || !/^\d{3,4}$/.test(cardCvv.value.trim())) {
+                    e.preventDefault();
+                    showError(form, 'Please enter a valid CVV.');
+                }
             }
         });
     });

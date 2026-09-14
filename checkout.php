@@ -1,21 +1,29 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 
+require_login('checkout.php');
+
 if (!get_cart()) {
     set_flash('error', 'Your cart is empty.');
     redirect('cart.php');
 }
 
+$active_nav = 'cart';
 $user = current_user();
 $error = '';
+$custom_checkout = cart_has_custom_cake();
 $values = [
     'name' => $user['name'] ?? '',
     'email' => $user['email'] ?? '',
     'phone' => $user['phone'] ?? '',
     'address' => '',
     'fulfillment' => 'Pickup',
-    'payment' => 'Cash on Delivery',
+    'payment' => $custom_checkout ? 'Card' : 'Cash on Delivery',
+    'ready_date' => '',
     'notes' => '',
+    'card_name' => $user['name'] ?? '',
+    'card_number' => '',
+    'card_expiry' => '',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,8 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $values['phone'] = sanitize_phone($_POST['phone'] ?? '');
     $values['address'] = sanitize_string($_POST['address'] ?? '', 255);
     $values['fulfillment'] = sanitize_string($_POST['fulfillment'] ?? 'Pickup', 20);
-    $values['payment'] = sanitize_string($_POST['payment'] ?? 'Cash on Delivery', 40);
+    $values['payment'] = sanitize_string($_POST['payment'] ?? ($custom_checkout ? 'Card' : 'Cash on Delivery'), 40);
+    $values['ready_date'] = sanitize_string($_POST['ready_date'] ?? '', 10);
     $values['notes'] = sanitize_string($_POST['notes'] ?? '', 120);
+    $values['card_name'] = sanitize_string($_POST['card_name'] ?? '', 100);
+    $values['card_number'] = card_digits($_POST['card_number'] ?? '');
+    $values['card_expiry'] = sanitize_string($_POST['card_expiry'] ?? '', 5);
+    $card_cvv = preg_replace('/\D+/', '', (string) ($_POST['card_cvv'] ?? ''));
+
+    if ($custom_checkout) {
+        $values['payment'] = 'Card';
+    }
 
     if ($values['name'] === '' || !valid_email($values['email']) || !valid_phone($values['phone'], true)) {
         $error = 'Please enter your name, a valid email, and a phone number.';
@@ -38,9 +55,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter a delivery address in Dumaguete City.';
     } elseif (!in_array($values['fulfillment'], ['Pickup', 'Delivery'], true)) {
         $error = 'Please choose pickup or delivery.';
-    } elseif (!in_array($values['payment'], ['Cash on Delivery', 'GCash'], true)) {
+    } elseif ($custom_checkout && !valid_ready_date($values['ready_date'])) {
+        $error = 'Please select a date at least 1 day from today for your custom cake.';
+    } elseif (!in_array($values['payment'], allowed_payments(), true)) {
         $error = 'Please choose a payment method.';
+    } elseif ($values['payment'] === 'Card' && ($values['card_name'] === '' || !valid_card_number($values['card_number']) || !valid_card_expiry($values['card_expiry']) || !valid_card_cvv($card_cvv))) {
+        $error = 'Please enter valid card details (name, 13–19 digit number, MM/YY expiry, and CVV).';
+    } elseif ($stock_error = cart_stock_issue()) {
+        $error = $stock_error;
     } else {
+        if ($values['payment'] === 'Card') {
+            $last4 = substr($values['card_number'], -4);
+            $card_note = 'Card ending in ' . $last4;
+            $values['notes'] = $values['notes'] === '' ? $card_note : $values['notes'] . ' · ' . $card_note;
+            if (mb_strlen($values['notes']) > 120) {
+                $values['notes'] = mb_substr($values['notes'], 0, 120);
+            }
+        }
         $order = save_order($values);
         if ($order) {
             redirect('order-success.php');
@@ -64,7 +95,7 @@ $flash = get_flash();
     <?php require __DIR__ . '/includes/site-nav.php'; ?>
     <section class="about inner-page">
         <div class="page-narrow">
-            <div class="cravings-header">
+            <div class="cravings-header checkout-heading">
                 <h2>CHECKOUT</h2>
                 <div class="heart-divider">
                     <span class="line"></span>
@@ -104,11 +135,41 @@ $flash = get_flash();
                     <span class="step-title">Address <small>(for delivery)</small></span>
                     <div class="step-input"><input type="text" name="address" placeholder="Dumaguete City address" value="<?php echo e($values['address']); ?>"></div>
                 </div>
+                <?php if ($custom_checkout): ?>
+                    <div class="step-row">
+                        <span class="step-title">Select a date</span>
+                        <div class="step-input">
+                            <input type="date" name="ready_date" value="<?php echo e($values['ready_date']); ?>" min="<?php echo e(earliest_ready_date()); ?>" max="<?php echo e(date('Y-m-d', strtotime('+90 days'))); ?>" required>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <div class="step-row">
                     <span class="step-title">Payment</span>
-                    <div class="step-options">
-                        <label class="pill-btn <?php echo $values['payment'] === 'Cash on Delivery' ? 'active' : ''; ?>"><input type="radio" name="payment" value="Cash on Delivery" <?php echo $values['payment'] === 'Cash on Delivery' ? 'checked' : ''; ?>> Cash on Delivery</label>
-                        <label class="pill-btn <?php echo $values['payment'] === 'GCash' ? 'active' : ''; ?>"><input type="radio" name="payment" value="GCash" <?php echo $values['payment'] === 'GCash' ? 'checked' : ''; ?>> GCash</label>
+                    <div class="step-options" id="payment-options">
+                        <?php if (!$custom_checkout): ?>
+                            <label class="pill-btn <?php echo $values['payment'] === 'Cash on Delivery' ? 'active' : ''; ?>"><input type="radio" name="payment" value="Cash on Delivery" <?php echo $values['payment'] === 'Cash on Delivery' ? 'checked' : ''; ?>> Cash on Delivery</label>
+                        <?php endif; ?>
+                        <label class="pill-btn <?php echo $values['payment'] === 'Card' ? 'active' : ''; ?>"><input type="radio" name="payment" value="Card" <?php echo $values['payment'] === 'Card' ? 'checked' : ''; ?>> Card</label>
+                    </div>
+                </div>
+                <div id="card-payment-fields" class="card-payment-fields" <?php echo $values['payment'] === 'Card' ? '' : 'hidden'; ?>>
+                    <div class="step-row">
+                        <span class="step-title">Name on card</span>
+                        <div class="step-input"><input type="text" name="card_name" value="<?php echo e($values['card_name']); ?>" maxlength="100" autocomplete="cc-name" placeholder="Name on card"></div>
+                    </div>
+                    <div class="step-row">
+                        <span class="step-title">Card number</span>
+                        <div class="step-input"><input type="text" name="card_number" value="<?php echo e($values['card_number']); ?>" inputmode="numeric" maxlength="19" autocomplete="cc-number" placeholder="ACCT-000003"></div>
+                    </div>
+                    <div class="card-payment-row">
+                        <div class="step-row">
+                            <span class="step-title">Expiry</span>
+                            <div class="step-input"><input type="text" name="card_expiry" value="<?php echo e($values['card_expiry']); ?>" maxlength="5" autocomplete="cc-exp" placeholder="MM/YY"></div>
+                        </div>
+                        <div class="step-row">
+                            <span class="step-title">CVV</span>
+                            <div class="step-input"><input type="password" name="card_cvv" maxlength="4" inputmode="numeric" autocomplete="cc-csc" placeholder="123"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="step-row">
@@ -117,7 +178,9 @@ $flash = get_flash();
                 </div>
                 <button type="submit" class="cta-button">PLACE ORDER</button>
             </form>
-            <p class="about-text">GCash payments can be sent to <?php echo e($phone_number); ?>.</p>
+            <p class="about-text" id="payment-hint"><?php echo $custom_checkout
+                ? 'Custom cakes are paid by card and need at least 1 day notice. Choose the date you want your cake ready.'
+                : 'Pay in cash at pickup or delivery, or choose Card to pay with a debit or credit card.'; ?></p>
             <a href="cart.php" class="view-all">BACK TO CART &rarr;</a>
         </div>
     </section>

@@ -2,7 +2,7 @@
     <div class="footer-container">
         <div class="footer-brand">
             <div class="footer-logo">
-                <a href="index.php"><img src="images/logo-.png" alt="<?php echo e($site_title); ?> Logo"></a>
+                <a href="<?php echo e(home_url()); ?>"><img src="images/logo-.png" alt="<?php echo e($site_title); ?> Logo"></a>
             </div>
             <p class="brand-tagline">Freshly baked pastries<br>made with love</p>
             <div class="social-icons">
@@ -13,10 +13,10 @@
         </div>
         <div class="footer-column">
             <h3>QUICK LINKS</h3>
-            <a href="index.php">Home</a>
+            <a href="<?php echo e(home_url()); ?>">Home</a>
             <a href="menu.php">Menu</a>
-            <a href="index.php#about">About Us</a>
-            <a href="index.php#how-to-order">How to Order</a>
+            <a href="about.php">About Us</a>
+            <a href="how-to-order.php">How to Order</a>
         </div>
         <div class="footer-column">
             <h3>CUSTOMER SERVICE</h3>

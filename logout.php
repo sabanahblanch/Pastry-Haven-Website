@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     logout_user();
     set_flash('success', 'You have been logged out.');
-    redirect('account.php');
+    redirect('index.php');
 }
 
 if (!current_user()) {
@@ -16,6 +16,7 @@ if (!current_user()) {
 }
 
 $user = current_user();
+$active_nav = 'logout';
 $initials = '';
 foreach (preg_split('/\s+/', trim($user['name'])) as $part) {
     if ($part !== '' && strlen($initials) < 2) {

@@ -96,6 +96,66 @@ function valid_phone($phone, $required = false)
     return (bool) preg_match('/^(09\d{9}|\+639\d{9}|\d{7,15})$/', $phone);
 }
 
+function cart_has_custom_cake()
+{
+    foreach (get_cart() as $item) {
+        if (($item['id'] ?? '') === 'custom-cake') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function allowed_payments()
+{
+    if (cart_has_custom_cake()) {
+        return ['Card'];
+    }
+    return ['Cash on Delivery', 'Card'];
+}
+
+function earliest_ready_date()
+{
+    return date('Y-m-d', strtotime('+1 day'));
+}
+
+function valid_ready_date($value)
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $value)) {
+        return false;
+    }
+    return $value >= earliest_ready_date() && $value <= date('Y-m-d', strtotime('+90 days'));
+}
+
+function card_digits($value)
+{
+    return preg_replace('/\D+/', '', (string) $value);
+}
+
+function valid_card_number($number)
+{
+    $digits = card_digits($number);
+    $len = strlen($digits);
+    return $len >= 13 && $len <= 19;
+}
+
+function valid_card_expiry($value)
+{
+    if (!preg_match('/^(0[1-9]|1[0-2])\/(\d{2})$/', trim((string) $value), $m)) {
+        return false;
+    }
+    $month = (int) $m[1];
+    $year = 2000 + (int) $m[2];
+    $exp = $year * 100 + $month;
+    $now = ((int) date('Y')) * 100 + (int) date('n');
+    return $exp >= $now;
+}
+
+function valid_card_cvv($value)
+{
+    return (bool) preg_match('/^\d{3,4}$/', trim((string) $value));
+}
+
 function hydrate_product($row)
 {
     if (!$row) {
@@ -105,6 +165,7 @@ function hydrate_product($row)
     $row['reviews'] = (int) $row['reviews'];
     $row['rating'] = (int) $row['rating'];
     $row['featured'] = !empty($row['featured']);
+    $row['stock'] = isset($row['stock']) ? (int) $row['stock'] : 0;
     return $row;
 }
 
@@ -223,15 +284,22 @@ function find_cart_index($key)
 
 function add_to_cart($product_id, $qty = 1)
 {
+    if (!current_user()) {
+        return false;
+    }
     $product = get_product($product_id);
     if (!$product || $product['id'] === 'custom-cake') {
+        return false;
+    }
+    $stock = (int) ($product['stock'] ?? 0);
+    if ($stock < 1) {
         return false;
     }
     $qty = max(1, min(20, (int) $qty));
     $cart = get_cart();
     foreach ($cart as &$item) {
         if ($item['id'] === $product_id && empty($item['options'])) {
-            $item['qty'] = min(20, $item['qty'] + $qty);
+            $item['qty'] = min($stock, min(20, $item['qty'] + $qty));
             save_cart($cart);
             return true;
         }
@@ -241,7 +309,7 @@ function add_to_cart($product_id, $qty = 1)
         'id' => $product['id'],
         'name' => $product['name'],
         'price' => $product['price'],
-        'qty' => $qty,
+        'qty' => min($stock, $qty),
         'image' => $product['image'],
         'options' => [],
     ];
@@ -251,6 +319,9 @@ function add_to_cart($product_id, $qty = 1)
 
 function add_custom_to_cart($flavor, $size, $dedication, $reference_path = '')
 {
+    if (!current_user()) {
+        return false;
+    }
     global $custom_cake_prices;
     $allowed_flavors = ['Chocolate', 'Vanilla', 'Strawberry', 'Red Velvet'];
     $allowed_sizes = ['Small', 'Medium', 'Large'];
@@ -322,12 +393,100 @@ function public_user($row)
         'name' => $row['name'],
         'email' => $row['email'],
         'phone' => $row['phone'] ?? '',
+        'role' => $row['role'] ?? 'customer',
     ];
 }
 
 function current_user()
 {
     return $_SESSION['user'] ?? null;
+}
+
+function is_logged_in()
+{
+    return current_user() !== null;
+}
+
+function home_url()
+{
+    if (is_admin()) {
+        return 'index.php';
+    }
+    return is_logged_in() ? 'menu.php' : 'index.php';
+}
+
+function after_login_home()
+{
+    return is_admin() ? 'index.php' : 'menu.php';
+}
+
+function safe_next_path($path, $fallback = 'account.php')
+{
+    $path = trim((string) $path);
+    if ($path === '' || strpos($path, '://') !== false || strpos($path, '//') === 0) {
+        return $fallback;
+    }
+    if (isset($path[0]) && ($path[0] === '/' || $path[0] === '\\' || strpos($path, '..') !== false)) {
+        return $fallback;
+    }
+    $file = strtok($path, '?#');
+    $allowed = [
+        'account.php',
+        'cart.php',
+        'checkout.php',
+        'favorites.php',
+        'index.php',
+        'menu.php',
+        'product.php',
+    ];
+    if (!in_array($file, $allowed, true)) {
+        return $fallback;
+    }
+    return $path;
+}
+
+function peek_login_next($fallback = 'account.php')
+{
+    $path = $_POST['next'] ?? $_GET['next'] ?? $_SESSION['after_login'] ?? '';
+    return safe_next_path($path, $fallback);
+}
+
+function consume_login_next($fallback = 'account.php')
+{
+    $path = peek_login_next($fallback);
+    unset($_SESSION['after_login']);
+    return $path;
+}
+
+function account_url($mode = '', $next = null)
+{
+    if ($next === null) {
+        $next = peek_login_next('');
+    }
+    $parts = [];
+    if ($mode === 'signup') {
+        $parts[] = 'mode=signup';
+    }
+    if ($next !== '' && $next !== 'account.php') {
+        $parts[] = 'next=' . urlencode(safe_next_path($next, 'account.php'));
+    }
+    return $parts ? 'account.php?' . implode('&', $parts) : 'account.php';
+}
+
+function require_login($next = 'account.php', $message = '')
+{
+    if (current_user()) {
+        return;
+    }
+    $next = safe_next_path($next, 'account.php');
+    $_SESSION['after_login'] = $next;
+    if ($message === '') {
+        $message = $next === 'checkout.php'
+            ? 'Please log in or create an account to checkout.'
+            : 'Please log in to continue.';
+    }
+    set_flash('error', $message);
+    redirect(account_url('', $next));
 }
 
 function find_user_by_email($email)
@@ -438,6 +597,7 @@ function register_user($name, $email, $phone, $password)
         'name' => $name,
         'email' => $email,
         'phone' => $phone,
+        'role' => 'customer',
     ];
     return true;
 }
@@ -499,7 +659,9 @@ function reset_password($email, $password)
 
 function logout_user()
 {
+    clear_cart();
     unset($_SESSION['user']);
+    unset($_SESSION['last_order']);
     remember_login('', false);
     session_regenerate_id(true);
 }
@@ -507,11 +669,10 @@ function logout_user()
 function save_order($fields)
 {
     $cart = get_cart();
-    if (!$cart) {
+    $user = current_user();
+    if (!$cart || !$user) {
         return false;
     }
-
-    $user = current_user();
     $order_id = 'PH-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
     $customer = [
         'name' => sanitize_string($fields['name'], 100),
@@ -526,8 +687,8 @@ function save_order($fields)
         db_query(
             'INSERT INTO orders
                 (id, user_id, customer_name, customer_email, customer_phone, customer_address,
-                 fulfillment, payment, notes, total, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 fulfillment, payment, notes, ready_date, total, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $order_id,
                 $user['id'] ?? null,
@@ -538,6 +699,7 @@ function save_order($fields)
                 $fields['fulfillment'],
                 $fields['payment'],
                 sanitize_string($fields['notes'] ?? '', 120),
+                !empty($fields['ready_date']) ? $fields['ready_date'] : null,
                 cart_subtotal(),
                 'Received',
             ]
@@ -558,6 +720,16 @@ function save_order($fields)
             );
             if ($item['id'] !== 'custom-cake') {
                 db_query('UPDATE products SET reviews = reviews + 1 WHERE id = ?', [$item['id']]);
+                $product = get_product($item['id']);
+                if ($product) {
+                    $next = max(0, (int) $product['stock'] - (int) $item['qty']);
+                    db_query('UPDATE products SET stock = ? WHERE id = ?', [$next, $item['id']]);
+                    db_query(
+                        'INSERT INTO stock_movements (product_id, qty_change, qty_after, reason, admin_id)
+                         VALUES (?, ?, ?, ?, ?)',
+                        [$item['id'], -1 * (int) $item['qty'], $next, 'Customer order ' . $order_id, $user['id'] ?? null]
+                    );
+                }
             }
         }
 
@@ -575,6 +747,7 @@ function save_order($fields)
         'fulfillment' => $fields['fulfillment'],
         'payment' => $fields['payment'],
         'notes' => sanitize_string($fields['notes'] ?? '', 120),
+        'ready_date' => !empty($fields['ready_date']) ? $fields['ready_date'] : null,
         'items' => $cart,
         'total' => cart_subtotal(),
         'status' => 'Received',
@@ -609,6 +782,34 @@ function attach_order_items($order)
         'address' => $order['customer_address'],
     ];
     $order['total'] = (float) $order['total'];
+    return $order;
+}
+
+function order_item_image($item)
+{
+    if (($item['id'] ?? '') === 'custom-cake') {
+        return 'images/dark choco.png';
+    }
+    $product = get_product($item['id'] ?? '');
+    return $product['image'] ?? 'images/logo-.png';
+}
+
+function get_saved_order($id)
+{
+    $id = sanitize_string($id, 32);
+    if ($id === '') {
+        return null;
+    }
+    $stmt = db_query('SELECT * FROM orders WHERE id = ? LIMIT 1', [$id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    $order = attach_order_items($row);
+    foreach ($order['items'] as &$item) {
+        $item['image'] = order_item_image($item);
+    }
+    unset($item);
     return $order;
 }
 
@@ -749,12 +950,30 @@ function category_label($category)
     return $categories[$category] ?? ucfirst((string) $category);
 }
 
+function safe_return_path($path)
+{
+    $path = trim((string) $path);
+    if ($path === 'cart.php' || $path === 'menu.php' || strpos($path, 'menu.php?') === 0) {
+        return $path;
+    }
+    if (strpos($path, 'product.php?id=') === 0) {
+        return $path;
+    }
+    return 'cart.php';
+}
+
 function render_menu_card($product)
 {
     global $categories;
     $fav_icon = is_favorite($product['id']) ? 'fas' : 'far';
     $url = 'product.php?id=' . urlencode($product['id']);
     $label = $categories[$product['category']] ?? ucfirst($product['category']);
+    $stock = (int) ($product['stock'] ?? 0);
+    $in_stock = $stock > 0;
+    $blurb = $product['description'] ?? '';
+    if (mb_strlen($blurb) > 90) {
+        $blurb = mb_substr($blurb, 0, 87) . '...';
+    }
     ob_start();
     ?>
         <article class="menu-card">
@@ -763,7 +982,7 @@ function render_menu_card($product)
                     <i class="<?php echo $fav_icon; ?> fa-heart"></i>
                 </button>
                 <a href="<?php echo e($url); ?>">
-                    <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>">
+                    <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>"<?php echo ($product['id'] ?? '') === 'classic-chocolate-cake' ? ' class="img-zoom-fill"' : ''; ?>>
                 </a>
             </div>
             <div class="menu-card-body">
@@ -771,11 +990,27 @@ function render_menu_card($product)
                     <h3><a href="<?php echo e($url); ?>"><?php echo e($product['name']); ?></a></h3>
                     <span class="menu-price-pill"><?php echo format_price($product['price']); ?></span>
                 </div>
+                <p class="menu-card-desc"><?php echo e($blurb); ?></p>
                 <div class="menu-card-meta">
                     <span><i class="fas fa-heart"></i> <?php echo number_format((float) $product['rating'], 1); ?> (<?php echo (int) $product['reviews']; ?>)</span>
                     <span><i class="fas fa-cookie-bite"></i> <?php echo e($label); ?></span>
-                    <span><i class="far fa-clock"></i> <?php echo e(product_ready_time($product['category'])); ?></span>
+                    <span class="<?php echo $in_stock ? 'stock-ok' : 'stock-out'; ?>">
+                        <i class="fas fa-box"></i>
+                        <?php echo $in_stock ? 'In stock (' . $stock . ')' : 'Out of stock'; ?>
+                    </span>
                 </div>
+                <?php if ($in_stock): ?>
+                    <form method="post" action="cart.php" class="menu-card-cart">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="id" value="<?php echo e($product['id']); ?>">
+                        <input type="hidden" name="qty" value="1">
+                        <input type="hidden" name="return" value="<?php echo e(menu_url()); ?>">
+                        <button type="submit" name="action" value="add" class="cta-button">ADD TO CART</button>
+                        <button type="submit" name="action" value="buy_now" class="btn secondary-btn">BUY NOW</button>
+                    </form>
+                <?php else: ?>
+                    <button type="button" class="cta-button" disabled>OUT OF STOCK</button>
+                <?php endif; ?>
             </div>
         </article>
     <?php
@@ -794,7 +1029,7 @@ function render_product_card($product)
                     <i class="<?php echo $fav_icon; ?> fa-heart"></i>
                 </button>
                 <a href="<?php echo e($url); ?>">
-                    <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>">
+                    <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>"<?php echo ($product['id'] ?? '') === 'classic-chocolate-cake' ? ' class="img-zoom-fill"' : ''; ?>>
                 </a>
             </div>
             <div class="product-info">

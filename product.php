@@ -24,8 +24,8 @@ $flash = get_flash();
     <?php require __DIR__ . '/includes/site-nav.php'; ?>
     <section class="about inner-page">
         <div class="about-container">
-            <div class="about-image-wrapper">
-                <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>">
+            <div class="about-image-wrapper product-photo">
+                <img src="<?php echo e($product['image']); ?>" alt="<?php echo e($product['name']); ?>"<?php echo $product['id'] === 'classic-chocolate-cake' ? ' class="img-zoom-fill"' : ''; ?>>
             </div>
             <div class="about-content">
                 <?php if ($flash): ?>
@@ -46,17 +46,20 @@ $flash = get_flash();
                 </div>
                 <p class="about-text"><?php echo e($product['description']); ?></p>
                 <p class="about-text"><?php echo e($product['details']); ?></p>
-                <form method="post" action="cart.php" class="build-right">
+                <form method="post" action="cart.php" class="build-right product-buy-row">
                     <?php echo csrf_field(); ?>
-                    <input type="hidden" name="action" value="add">
                     <input type="hidden" name="id" value="<?php echo e($product['id']); ?>">
+                    <input type="hidden" name="return" value="product.php?id=<?php echo e($product['id']); ?>">
                     <div class="step-row">
                         <span class="step-title">Quantity</span>
                         <div class="step-input">
                             <input type="number" name="qty" value="1" min="1" max="20" required>
                         </div>
                     </div>
-                    <button type="submit" class="cta-button">ADD TO CART</button>
+                    <div class="menu-card-cart">
+                        <button type="submit" name="action" value="add" class="cta-button">ADD TO CART</button>
+                        <button type="submit" name="action" value="buy_now" class="btn secondary-btn">BUY NOW</button>
+                    </div>
                 </form>
                 <a href="favorite.php?id=<?php echo e($product['id']); ?>" class="btn secondary-btn">
                     <?php echo is_favorite($product['id']) ? 'SAVED' : 'ADD TO FAVORITES'; ?>
