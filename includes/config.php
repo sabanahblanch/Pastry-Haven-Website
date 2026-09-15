@@ -38,6 +38,7 @@ require_once __DIR__ . '/db-config.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/admin.php';
+require_once __DIR__ . '/inbox.php';
 
 ensure_storage();
 

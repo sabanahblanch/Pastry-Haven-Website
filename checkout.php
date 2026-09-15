@@ -3,15 +3,21 @@ require_once __DIR__ . '/includes/config.php';
 
 require_login('checkout.php');
 
-if (!get_cart()) {
-    set_flash('error', 'Your cart is empty.');
+if (is_admin()) {
+    set_flash('error', 'Admin accounts cannot buy products.');
+    redirect('menu.php');
+}
+
+$items = checkout_items();
+if (!$items) {
+    set_flash('error', 'Please check the items you want to check out.');
     redirect('cart.php');
 }
 
 $active_nav = 'cart';
 $user = current_user();
 $error = '';
-$custom_checkout = cart_has_custom_cake();
+$custom_checkout = cart_has_custom_cake($items);
 $values = [
     'name' => $user['name'] ?? '',
     'email' => $user['email'] ?? '',
@@ -57,11 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please choose pickup or delivery.';
     } elseif ($custom_checkout && !valid_ready_date($values['ready_date'])) {
         $error = 'Please select a date at least 1 day from today for your custom cake.';
-    } elseif (!in_array($values['payment'], allowed_payments(), true)) {
+    } elseif (!in_array($values['payment'], allowed_payments($items), true)) {
         $error = 'Please choose a payment method.';
     } elseif ($values['payment'] === 'Card' && ($values['card_name'] === '' || !valid_card_number($values['card_number']) || !valid_card_expiry($values['card_expiry']) || !valid_card_cvv($card_cvv))) {
         $error = 'Please enter valid card details (name, 13–19 digit number, MM/YY expiry, and CVV).';
-    } elseif ($stock_error = cart_stock_issue()) {
+    } elseif ($stock_error = cart_stock_issue($items)) {
         $error = $stock_error;
     } else {
         if ($values['payment'] === 'Card') {
@@ -93,17 +99,29 @@ $flash = get_flash();
 </head>
 <body>
     <?php require __DIR__ . '/includes/site-nav.php'; ?>
-    <section class="about inner-page">
-        <div class="page-narrow">
-            <div class="cravings-header checkout-heading">
-                <h2>CHECKOUT</h2>
-                <div class="heart-divider">
-                    <span class="line"></span>
-                    <i class="fas fa-heart"></i>
-                    <span class="line"></span>
+    <section class="cravings auth-page">
+        <div class="checkout-box">
+            <div class="checkout-box-left">
+                <div class="cravings-header">
+                    <h2>Checkout</h2>
+                    <div class="heart-divider">
+                        <span class="line"></span>
+                        <i class="fas fa-heart"></i>
+                        <span class="line"></span>
+                    </div>
                 </div>
+                <ul class="checkout-items">
+                    <?php foreach ($items as $item): ?>
+                        <li>
+                            <span><?php echo e($item['name']); ?> × <?php echo (int) $item['qty']; ?></span>
+                            <strong><?php echo format_price($item['price'] * $item['qty']); ?></strong>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <p class="checkout-total">Total <?php echo format_price(checkout_subtotal($items)); ?></p>
+                <a href="cart.php" class="btn secondary-btn">BACK TO CART</a>
             </div>
-            <p class="about-text">Total: <?php echo format_price(cart_subtotal()); ?></p>
+            <div class="checkout-box-right">
             <?php if ($flash): ?>
                 <p class="about-text auth-flash auth-flash-<?php echo e($flash['type']); ?>"><?php echo e($flash['message']); ?></p>
             <?php endif; ?>
@@ -131,9 +149,9 @@ $flash = get_flash();
                         <label class="pill-btn <?php echo $values['fulfillment'] === 'Delivery' ? 'active' : ''; ?>"><input type="radio" name="fulfillment" value="Delivery" <?php echo $values['fulfillment'] === 'Delivery' ? 'checked' : ''; ?>> Delivery</label>
                     </div>
                 </div>
-                <div class="step-row">
-                    <span class="step-title">Address <small>(for delivery)</small></span>
-                    <div class="step-input"><input type="text" name="address" placeholder="Dumaguete City address" value="<?php echo e($values['address']); ?>"></div>
+                <div class="step-row" id="delivery-address-fields" <?php echo $values['fulfillment'] === 'Delivery' ? '' : 'hidden'; ?>>
+                    <span class="step-title">Address</span>
+                    <div class="step-input"><input type="text" name="address" id="delivery-address" placeholder="Dumaguete City address" value="<?php echo e($values['address']); ?>" <?php echo $values['fulfillment'] === 'Delivery' ? 'required' : ''; ?>></div>
                 </div>
                 <?php if ($custom_checkout): ?>
                     <div class="step-row">
@@ -181,7 +199,8 @@ $flash = get_flash();
             <p class="about-text" id="payment-hint"><?php echo $custom_checkout
                 ? 'Custom cakes are paid by card and need at least 1 day notice. Choose the date you want your cake ready.'
                 : 'Pay in cash at pickup or delivery, or choose Card to pay with a debit or credit card.'; ?></p>
-            <a href="cart.php" class="view-all">BACK TO CART &rarr;</a>
+            <a href="cart.php" class="btn secondary-btn">BACK TO CART</a>
+            </div>
         </div>
     </section>
     <?php require __DIR__ . '/includes/site-footer.php'; ?>

@@ -138,4 +138,74 @@
         input.addEventListener('change', syncCardPaymentFields);
     });
     syncCardPaymentFields();
+
+    function syncDeliveryAddress() {
+        var fields = document.getElementById('delivery-address-fields');
+        var address = document.getElementById('delivery-address');
+        var selected = document.querySelector('input[name="fulfillment"]:checked');
+        var isDelivery = selected && selected.value === 'Delivery';
+        if (!fields) {
+            return;
+        }
+        fields.hidden = !isDelivery;
+        if (address) {
+            address.required = !!isDelivery;
+        }
+    }
+    document.querySelectorAll('input[name="fulfillment"]').forEach(function (input) {
+        input.addEventListener('change', syncDeliveryAddress);
+    });
+    syncDeliveryAddress();
+
+    var selectAll = document.getElementById('cart-select-all');
+    var cartBoxes = document.querySelectorAll('input[name="keys[]"]');
+    var cartTotal = document.getElementById('cart-total');
+
+    function formatPeso(amount) {
+        return '₱' + Number(amount).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function selectedCartTotal() {
+        var total = 0;
+        cartBoxes.forEach(function (box) {
+            if (box.checked) {
+                total += parseFloat(box.getAttribute('data-amount') || '0') || 0;
+            }
+        });
+        return total;
+    }
+
+    function syncCartTotal() {
+        if (cartTotal) {
+            cartTotal.textContent = 'Total ' + formatPeso(selectedCartTotal());
+        }
+        if (selectAll && cartBoxes.length) {
+            var checked = 0;
+            cartBoxes.forEach(function (box) {
+                if (box.checked) {
+                    checked += 1;
+                }
+            });
+            selectAll.checked = checked === cartBoxes.length;
+            selectAll.indeterminate = checked > 0 && checked < cartBoxes.length;
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            cartBoxes.forEach(function (box) {
+                box.checked = selectAll.checked;
+            });
+            syncCartTotal();
+        });
+    }
+    cartBoxes.forEach(function (box) {
+        box.addEventListener('change', syncCartTotal);
+    });
+    if (cartBoxes.length) {
+        syncCartTotal();
+    }
 })();

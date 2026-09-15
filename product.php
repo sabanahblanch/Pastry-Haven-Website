@@ -46,6 +46,7 @@ $flash = get_flash();
                 </div>
                 <p class="about-text"><?php echo e($product['description']); ?></p>
                 <p class="about-text"><?php echo e($product['details']); ?></p>
+                <?php if (!is_admin()): ?>
                 <form method="post" action="cart.php" class="build-right product-buy-row">
                     <?php echo csrf_field(); ?>
                     <input type="hidden" name="id" value="<?php echo e($product['id']); ?>">
@@ -61,6 +62,9 @@ $flash = get_flash();
                         <button type="submit" name="action" value="buy_now" class="btn secondary-btn">BUY NOW</button>
                     </div>
                 </form>
+                <?php elseif (is_admin()): ?>
+                    <p class="about-text">Admin accounts cannot buy products.</p>
+                <?php endif; ?>
                 <a href="favorite.php?id=<?php echo e($product['id']); ?>" class="btn secondary-btn">
                     <?php echo is_favorite($product['id']) ? 'SAVED' : 'ADD TO FAVORITES'; ?>
                 </a>

@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = reset_password($email, $password);
         if ($result === true) {
             set_flash('success', 'Password updated. You can now log in.');
-            redirect('account.php');
+            redirect('login.php');
         }
         $error = $result;
     }
@@ -88,7 +88,7 @@ $flash = get_flash();
                     </div>
                     <button type="submit" class="cta-button">UPDATE PASSWORD</button>
                 </form>
-                <p class="about-text">Remembered it? <a href="account.php">Log In</a></p>
+                <p class="about-text">Remembered it? <a href="login.php">Log In</a></p>
             </div>
             <div class="product-info">
                 <p class="price">Freshly baked pastries made with love</p>

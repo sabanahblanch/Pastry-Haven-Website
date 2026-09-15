@@ -26,7 +26,7 @@ $customize_form_class = $customize_form_class ?? 'build-card';
         <div class="cake-image-container">
             <img src="images/dark choco.png" alt="Custom cake">
         </div>
-        <button type="submit" class="cta-button">ADD TO CART</button>
+        <button type="submit" class="cta-button"<?php echo is_admin() ? ' disabled' : ''; ?>><?php echo is_admin() ? 'ADMINS CANNOT BUY' : 'ADD TO CART'; ?></button>
     </div>
 
     <div class="build-right">

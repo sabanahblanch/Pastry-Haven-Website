@@ -8,6 +8,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $action = $_POST['action'] ?? '';
+    if (in_array($action, ['add', 'buy_now', 'add_custom', 'checkout_selected'], true) && is_admin()) {
+        set_flash('error', 'Admin accounts cannot buy products. Use a customer account to place an order.');
+        redirect(safe_return_path($_POST['return'] ?? 'menu.php'));
+    }
     if (in_array($action, ['add', 'buy_now', 'add_custom'], true) && !current_user()) {
         $next = $action === 'add_custom'
             ? safe_next_path($_POST['return'] ?? 'menu.php?category=cakes&customize=1', 'menu.php')
@@ -29,7 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'buy_now') {
         $id = $_POST['id'] ?? '';
         $qty = (int) ($_POST['qty'] ?? 1);
-        if (add_to_cart($id, $qty)) {
+        $key = add_to_cart($id, $qty);
+        if ($key) {
+            set_checkout_keys([$key]);
             redirect('checkout.php');
         }
         set_flash('error', 'That pastry could not be added. It may be out of stock.');
@@ -38,14 +44,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add_custom') {
         $path = handle_reference_upload();
-        add_custom_to_cart(
+        $key = add_custom_to_cart(
             $_POST['flavor'] ?? 'Chocolate',
             $_POST['size'] ?? 'Small',
             $_POST['dedication'] ?? '',
             $path
         );
-        set_flash('success', 'Your custom cake was added to the cart.');
-        redirect('cart.php');
+        if ($key) {
+            set_flash('success', 'Your custom cake was added to the cart.');
+            redirect('cart.php');
+        }
+        set_flash('error', 'That pastry could not be added.');
+        redirect(safe_return_path($_POST['return'] ?? 'menu.php'));
+    }
+
+    if ($action === 'checkout_selected') {
+        $keys = set_checkout_keys($_POST['keys'] ?? []);
+        if (!$keys) {
+            set_flash('error', 'Please check the items you want to check out.');
+            redirect('cart.php');
+        }
+        redirect('checkout.php');
     }
 
     if ($action === 'update') {
@@ -64,6 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (($_GET['action'] ?? '') === 'add') {
+    if (is_admin()) {
+        set_flash('error', 'Admin accounts cannot buy products.');
+        redirect('menu.php');
+    }
     require_login(
         safe_next_path($_GET['return'] ?? 'menu.php', 'menu.php'),
         'Please log in or create an account to add items to your cart.'
@@ -105,10 +128,21 @@ $user = current_user();
         <?php if (!$cart): ?>
             <p class="about-text">Your cart is empty. Browse the menu to add a treat.</p>
             <a href="menu.php" class="cta-button">EXPLORE MENU</a>
+        <?php elseif (is_admin()): ?>
+            <p class="about-text">Admin accounts cannot buy products. Log in with a customer account to place an order.</p>
+            <a href="menu.php" class="cta-button">BACK TO MENU</a>
         <?php else: ?>
+            <label class="cart-select-all">
+                <input type="checkbox" id="cart-select-all" checked>
+                Select items to check out
+            </label>
             <div class="product-grid cart-list">
                 <?php foreach ($cart as $item): ?>
                     <div class="product-card">
+                        <label class="cart-check">
+                            <input type="checkbox" form="checkout-form" name="keys[]" value="<?php echo e($item['key']); ?>" data-amount="<?php echo e((string) ($item['price'] * $item['qty'])); ?>" checked>
+                            <span>Check out this item</span>
+                        </label>
                         <div class="product-image">
                             <img src="<?php echo e($item['image']); ?>" alt="<?php echo e($item['name']); ?>">
                         </div>
@@ -142,10 +176,14 @@ $user = current_user();
                 <?php endforeach; ?>
             </div>
             <div class="cravings-header">
-                <h2>Total <?php echo format_price(cart_subtotal()); ?></h2>
+                <h2 id="cart-total">Total <?php echo format_price(cart_subtotal()); ?></h2>
             </div>
             <?php if ($user): ?>
-                <a href="checkout.php" class="cta-button">CHECKOUT</a>
+                <form id="checkout-form" method="post">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="action" value="checkout_selected">
+                    <button type="submit" class="cta-button">CHECKOUT SELECTED</button>
+                </form>
             <?php else: ?>
                 <p class="about-text">Log in or create an account to place your order.</p>
                 <a href="<?php echo e(account_url('', 'checkout.php')); ?>" class="cta-button">LOG IN TO CHECKOUT</a>

@@ -31,6 +31,29 @@ function ensure_admin_schema()
     }
 
     db()->exec(
+        'CREATE TABLE IF NOT EXISTS inbox_threads (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            subject VARCHAR(120) NOT NULL DEFAULT \'\',
+            last_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_inbox_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS inbox_messages (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            thread_id INT UNSIGNED NOT NULL,
+            sender_id INT UNSIGNED NOT NULL,
+            body TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read_at TIMESTAMP NULL,
+            CONSTRAINT fk_inbox_thread FOREIGN KEY (thread_id) REFERENCES inbox_threads(id) ON DELETE CASCADE,
+            CONSTRAINT fk_inbox_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    db()->exec(
         'CREATE TABLE IF NOT EXISTS stock_movements (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             product_id VARCHAR(64) NOT NULL,
@@ -126,7 +149,7 @@ function require_admin()
     $user = current_user();
     if (!$user) {
         set_flash('error', 'Please log in with an admin account.');
-        redirect('../account.php');
+        redirect('../login.php');
     }
     $stmt = db_query('SELECT * FROM users WHERE id = ? LIMIT 1', [(int) $user['id']]);
     $row = $stmt->fetch();
@@ -222,9 +245,9 @@ function handle_product_image_upload($field = 'image')
     return 'uploads/' . $filename;
 }
 
-function cart_stock_issue()
+function cart_stock_issue($items = null)
 {
-    foreach (get_cart() as $item) {
+    foreach ($items ?? get_cart() as $item) {
         if ($item['id'] === 'custom-cake') {
             continue;
         }
@@ -246,6 +269,7 @@ function admin_nav_items()
         'products.php' => ['Products / Menu', 'fa-birthday-cake'],
         'inventory.php' => ['Inventory / Stocks', 'fa-boxes'],
         'orders.php' => ['Orders', 'fa-receipt'],
+        'inbox.php' => ['Messages', 'fa-inbox'],
         'users.php' => ['Users', 'fa-users'],
         'settings.php' => ['Settings', 'fa-cog'],
     ];

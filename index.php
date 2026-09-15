@@ -1,10 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 
-if (is_logged_in() && !is_admin()) {
-    redirect('menu.php');
-}
-
 $active_nav = 'home';
 $flash = get_flash();
 ?>

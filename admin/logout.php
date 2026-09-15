@@ -6,7 +6,7 @@ require_admin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     logout_user();
     set_flash('success', 'You have been logged out.');
-    redirect('../account.php');
+    redirect('../login.php');
 }
 
 redirect('index.php');

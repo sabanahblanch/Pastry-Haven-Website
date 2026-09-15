@@ -96,9 +96,9 @@ function valid_phone($phone, $required = false)
     return (bool) preg_match('/^(09\d{9}|\+639\d{9}|\d{7,15})$/', $phone);
 }
 
-function cart_has_custom_cake()
+function cart_has_custom_cake($items = null)
 {
-    foreach (get_cart() as $item) {
+    foreach ($items ?? get_cart() as $item) {
         if (($item['id'] ?? '') === 'custom-cake') {
             return true;
         }
@@ -106,9 +106,9 @@ function cart_has_custom_cake()
     return false;
 }
 
-function allowed_payments()
+function allowed_payments($items = null)
 {
-    if (cart_has_custom_cake()) {
+    if (cart_has_custom_cake($items)) {
         return ['Card'];
     }
     return ['Cash on Delivery', 'Card'];
@@ -284,7 +284,7 @@ function find_cart_index($key)
 
 function add_to_cart($product_id, $qty = 1)
 {
-    if (!current_user()) {
+    if (!can_purchase()) {
         return false;
     }
     $product = get_product($product_id);
@@ -301,11 +301,14 @@ function add_to_cart($product_id, $qty = 1)
         if ($item['id'] === $product_id && empty($item['options'])) {
             $item['qty'] = min($stock, min(20, $item['qty'] + $qty));
             save_cart($cart);
-            return true;
+            select_cart_item($item['key']);
+            return $item['key'];
         }
     }
+    unset($item);
+    $key = bin2hex(random_bytes(6));
     $cart[] = [
-        'key' => bin2hex(random_bytes(6)),
+        'key' => $key,
         'id' => $product['id'],
         'name' => $product['name'],
         'price' => $product['price'],
@@ -314,12 +317,13 @@ function add_to_cart($product_id, $qty = 1)
         'options' => [],
     ];
     save_cart($cart);
-    return true;
+    select_cart_item($key);
+    return $key;
 }
 
 function add_custom_to_cart($flavor, $size, $dedication, $reference_path = '')
 {
-    if (!current_user()) {
+    if (!can_purchase()) {
         return false;
     }
     global $custom_cake_prices;
@@ -334,8 +338,9 @@ function add_custom_to_cart($flavor, $size, $dedication, $reference_path = '')
     $dedication = sanitize_string($dedication, 80);
     $price = $custom_cake_prices[$size];
     $cart = get_cart();
+    $key = bin2hex(random_bytes(6));
     $cart[] = [
-        'key' => bin2hex(random_bytes(6)),
+        'key' => $key,
         'id' => 'custom-cake',
         'name' => 'Custom ' . $flavor . ' Cake',
         'price' => $price,
@@ -349,7 +354,8 @@ function add_custom_to_cart($flavor, $size, $dedication, $reference_path = '')
         ],
     ];
     save_cart($cart);
-    return true;
+    select_cart_item($key);
+    return $key;
 }
 
 function update_cart_qty($key, $qty)
@@ -384,6 +390,84 @@ function remove_from_cart($key)
 function clear_cart()
 {
     $_SESSION['cart'] = [];
+    $_SESSION['checkout_keys'] = [];
+}
+
+function can_purchase()
+{
+    return is_logged_in() && !is_admin();
+}
+
+function get_checkout_keys()
+{
+    $valid = [];
+    foreach (get_cart() as $item) {
+        $valid[] = $item['key'];
+    }
+    $keys = $_SESSION['checkout_keys'] ?? null;
+    if (!is_array($keys)) {
+        return $valid;
+    }
+    return array_values(array_intersect($keys, $valid));
+}
+
+function set_checkout_keys($keys)
+{
+    $wanted = [];
+    foreach ((array) $keys as $key) {
+        $wanted[] = sanitize_string((string) $key, 32);
+    }
+    $valid = [];
+    foreach (get_cart() as $item) {
+        if (in_array($item['key'], $wanted, true)) {
+            $valid[] = $item['key'];
+        }
+    }
+    $_SESSION['checkout_keys'] = $valid;
+    return $valid;
+}
+
+function select_cart_item($key)
+{
+    $keys = get_checkout_keys();
+    if (!in_array($key, $keys, true)) {
+        $keys[] = $key;
+    }
+    $_SESSION['checkout_keys'] = $keys;
+}
+
+function checkout_items()
+{
+    $keys = get_checkout_keys();
+    $items = [];
+    foreach (get_cart() as $item) {
+        if (in_array($item['key'], $keys, true)) {
+            $items[] = $item;
+        }
+    }
+    return $items;
+}
+
+function checkout_subtotal($items = null)
+{
+    $total = 0;
+    foreach ($items ?? checkout_items() as $item) {
+        $total += $item['price'] * $item['qty'];
+    }
+    return $total;
+}
+
+function remove_checkout_items()
+{
+    $keys = get_checkout_keys();
+    $cart = [];
+    foreach (get_cart() as $item) {
+        if (!in_array($item['key'], $keys, true)) {
+            $cart[] = $item;
+        }
+    }
+    save_cart($cart);
+    $_SESSION['checkout_keys'] = [];
 }
 
 function public_user($row)
@@ -409,15 +493,12 @@ function is_logged_in()
 
 function home_url()
 {
-    if (is_admin()) {
-        return 'index.php';
-    }
-    return is_logged_in() ? 'menu.php' : 'index.php';
+    return 'index.php';
 }
 
 function after_login_home()
 {
-    return is_admin() ? 'index.php' : 'menu.php';
+    return is_admin() ? 'admin/index.php' : 'menu.php';
 }
 
 function safe_next_path($path, $fallback = 'account.php')
@@ -435,9 +516,12 @@ function safe_next_path($path, $fallback = 'account.php')
         'cart.php',
         'checkout.php',
         'favorites.php',
+        'inbox.php',
         'index.php',
+        'login.php',
         'menu.php',
         'product.php',
+        'signup.php',
     ];
     if (!in_array($file, $allowed, true)) {
         return $fallback;
@@ -463,14 +547,12 @@ function account_url($mode = '', $next = null)
     if ($next === null) {
         $next = peek_login_next('');
     }
+    $file = $mode === 'signup' ? 'signup.php' : 'login.php';
     $parts = [];
-    if ($mode === 'signup') {
-        $parts[] = 'mode=signup';
+    if ($next !== '' && !in_array($next, ['account.php', 'login.php', 'signup.php'], true)) {
+        $parts[] = 'next=' . urlencode(safe_next_path($next, 'login.php'));
     }
-    if ($next !== '' && $next !== 'account.php') {
-        $parts[] = 'next=' . urlencode(safe_next_path($next, 'account.php'));
-    }
-    return $parts ? 'account.php?' . implode('&', $parts) : 'account.php';
+    return $parts ? $file . '?' . implode('&', $parts) : $file;
 }
 
 function require_login($next = 'account.php', $message = '')
@@ -668,11 +750,12 @@ function logout_user()
 
 function save_order($fields)
 {
-    $cart = get_cart();
     $user = current_user();
-    if (!$cart || !$user) {
+    $cart = checkout_items();
+    if (!$cart || !$user || is_admin()) {
         return false;
     }
+    $total = checkout_subtotal($cart);
     $order_id = 'PH-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
     $customer = [
         'name' => sanitize_string($fields['name'], 100),
@@ -700,7 +783,7 @@ function save_order($fields)
                 $fields['payment'],
                 sanitize_string($fields['notes'] ?? '', 120),
                 !empty($fields['ready_date']) ? $fields['ready_date'] : null,
-                cart_subtotal(),
+                $total,
                 'Received',
             ]
         );
@@ -749,12 +832,12 @@ function save_order($fields)
         'notes' => sanitize_string($fields['notes'] ?? '', 120),
         'ready_date' => !empty($fields['ready_date']) ? $fields['ready_date'] : null,
         'items' => $cart,
-        'total' => cart_subtotal(),
+        'total' => $total,
         'status' => 'Received',
         'created_at' => date('c'),
     ];
     $_SESSION['last_order'] = $order;
-    clear_cart();
+    remove_checkout_items();
     return $order;
 }
 
@@ -999,7 +1082,7 @@ function render_menu_card($product)
                         <?php echo $in_stock ? 'In stock (' . $stock . ')' : 'Out of stock'; ?>
                     </span>
                 </div>
-                <?php if ($in_stock): ?>
+                <?php if ($in_stock && !is_admin()): ?>
                     <form method="post" action="cart.php" class="menu-card-cart">
                         <?php echo csrf_field(); ?>
                         <input type="hidden" name="id" value="<?php echo e($product['id']); ?>">
@@ -1008,7 +1091,9 @@ function render_menu_card($product)
                         <button type="submit" name="action" value="add" class="cta-button">ADD TO CART</button>
                         <button type="submit" name="action" value="buy_now" class="btn secondary-btn">BUY NOW</button>
                     </form>
-                <?php else: ?>
+                <?php elseif ($in_stock && is_admin()): ?>
+                    <p class="menu-card-desc">Admins cannot buy products.</p>
+                <?php elseif (!$in_stock): ?>
                     <button type="button" class="cta-button" disabled>OUT OF STOCK</button>
                 <?php endif; ?>
             </div>

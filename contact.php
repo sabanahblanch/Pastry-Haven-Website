@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter a valid phone number.';
     } else {
         save_message($values['name'], $values['email'], $values['phone'], $values['message']);
+        if ($user && !is_admin()) {
+            $thread_id = inbox_create_thread($user['id'], 'Contact form', $values['message']);
+            set_flash('success', 'Message sent. You can keep the conversation going in your Inbox.');
+            redirect('inbox.php');
+        }
         set_flash('success', 'Message sent. We will get back to you soon.');
         redirect('contact.php');
     }
@@ -66,8 +71,7 @@ $flash = get_flash();
                     </article>
                     <article class="contact-card">
                         <div class="icon-circle"><i class="fas fa-clock"></i></div>
-                        <h3>Pickup &amp; Delivery</h3>
-                        <p>Same-day orders before 11:00 AM</p>
+                        <h3>Freshly Baked Everyday</h3>
                     </article>
                 </div>
 
